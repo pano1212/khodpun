@@ -61,7 +61,7 @@ export const Pun = () => {
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
             <div className="p-5 bg-white flex flex-col rounded-lg shadow-lg text-center w-80">
               <p className="mb-3 font-medium text-gray-700">
-                ກະລຸນາປ້ອນຊື່ຄົນທີ່ທ່ານຮັກ
+                ກະລຸນາປ້ອນຊື່ຄົນທີ່ທ່ານຮັກ 
               </p>
               <input
                 type="text"
