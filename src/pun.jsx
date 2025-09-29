@@ -1,12 +1,13 @@
 import IconButton from '@mui/material/IconButton';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 
 export const Pun = () => {
   const [move, setmove] = useState({ top: 100, left: 100 });
   const [numm, setNum] = useState(1);
-  const [inputName, setInputName] = useState('')
+  const [inputName, setInputName] = useState('');
+  const [circle, setCircle] = useState(false);
   const moveRandom = () => {
     const maxX = window.innerWidth - 100
     const maxY = window.innerHeight - 30
@@ -16,6 +17,17 @@ export const Pun = () => {
     setNum(numm + 1);
 
   };
+
+  useEffect(() => {
+    if (circle) {
+      const timer = setTimeout(() => {
+        setCircle(false)
+        moveRandom()
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [circle])
+
 
   return (
     <div
@@ -58,10 +70,10 @@ export const Pun = () => {
           />
         )}
         {numm === 5 && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="p-5 bg-white flex flex-col rounded-lg shadow-lg text-center w-80">
+          <div className={`fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 `}>
+            <div className={`p-5 bg-white flex flex-col rounded-lg shadow-lg text-center w-80 ${circle === true ? 'animate-spin ' : ''}`}>
               <p className="mb-3 font-medium text-gray-700">
-                ກະລຸນາປ້ອນຊື່ຄົນທີ່ທ່ານຮັກ 
+                ກະລຸນາປ້ອນຊື່ຄົນທີ່ທ່ານຮັກ
               </p>
               <input
                 type="text"
@@ -72,7 +84,7 @@ export const Pun = () => {
               />
               <button
                 className="border mt-5 py-2 rounded-sm bg-pink-500 text-white hover:bg-pink-600 transition"
-                onClick={inputName != '' ? moveRandom : ''}
+                onClick={() => inputName != '' ? setCircle(!circle) : ''}
                 style={{
                   top: move.top,
                   left: move.left,
