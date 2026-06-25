@@ -1,10 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Pun } from './pun';
 import { SnakeGame } from './SnakeGame';
 import { LoginForm } from './LoginForm';
+import { auth, getUserPointsByAuthUid } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('menu'); // 'menu', 'pun', 'snake', 'login'
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Check if user is logged in
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+    });
+    return unsubscribe;
+  }, []);
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -21,7 +32,11 @@ function App() {
           </div>
         );
       case 'snake':
-        return <SnakeGame onBack={() => setCurrentScreen('menu')} />;
+        return <SnakeGame 
+          onBack={() => setCurrentScreen('menu')}
+          currentUser={currentUser}
+          onShowLogin={() => setCurrentScreen('login')}
+        />;
       case 'login':
         return <LoginForm onBack={() => setCurrentScreen('menu')} />;
       default:

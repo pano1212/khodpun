@@ -1,16 +1,47 @@
 import CasinoIcon from '@mui/icons-material/Casino';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 import React, { useEffect, useState, useRef } from 'react'
 import { SnakeGame } from './SnakeGame';
+import { auth, getUserPointsByAuthUid } from './firebase';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from 'firebase/auth';
 
-export const Pun = ({ onBack }) => {
-  const [inputName, setInputName] = useState('');
+export const Pun = ({ onBack, onLogin }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const containerRef = useRef(null);
 
   const [showWelcome, setShowWelcome] = useState(true);
   const [showLuckyDraw, setShowLuckyDraw] = useState(false);
 
   const [showLogin, setShowLogin] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [showError, setShowError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userPoints, setUserPoints] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  // Check if user is logged in
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setCurrentUser(user);
+        try {
+          const points = await getUserPointsByAuthUid(user.uid);
+          setUserPoints(points || 0);
+        } catch (err) {
+          console.error('Error fetching points:', err);
+        }
+      } else {
+        setCurrentUser(null);
+        setUserPoints(0);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   // Slot Machine State
   const [slots, setSlots] = useState(['7', '7', '7']);
@@ -37,9 +68,73 @@ export const Pun = ({ onBack }) => {
     }, 100);
   };
 
-  const handleLogin = () => {
-    if (inputName !== '') {
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setErrorMessage('Please enter email and password');
+      setShowError(true);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
       setShowLogin(false);
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+      setIsRegistering(false);
+    } catch (err) {
+      setErrorMessage(err.message);
+      setShowError(true);
+      console.error('Login error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!email || !password || !confirmPassword) {
+      setErrorMessage('Please fill in all fields');
+      setShowError(true);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Passwords do not match');
+      setShowError(true);
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters');
+      setShowError(true);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      setShowLogin(false);
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+      setIsRegistering(false);
+    } catch (err) {
+      setErrorMessage(err.message);
+      setShowError(true);
+      console.error('Registration error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setCurrentUser(null);
+      setUserPoints(0);
+    } catch (err) {
+      setErrorMessage(err.message);
       setShowError(true);
     }
   };
@@ -56,7 +151,7 @@ export const Pun = ({ onBack }) => {
         }}>
       </div>
 
-      {/* Login Button */}
+      {/* Login Button / User Info */}
       <div className="absolute top-4 z-50 flex w-full justify-between px-2">
         <div
           className="text-white font-bold py-2 px-2 text-center active:border-b-0 active:translate-y-1 transition-all uppercase text-xs items-center"
@@ -66,12 +161,28 @@ export const Pun = ({ onBack }) => {
           <br />
           <p className='text-yellow-500 '>Spin</p>
         </div>
-        <button
-          onClick={() => setShowLogin(true)}
-          className="bg-blue-600 text-white font-bold py-2 px-4 border-b-4 border-blue-800 active:border-b-0 active:translate-y-1 hover:bg-blue-500 transition-all uppercase text-xs"
-        >
-          LOGIN
-        </button>
+        
+        {currentUser ? (
+          <div className="flex gap-2 items-center">
+            <div className="bg-green-600 text-white font-bold py-2 px-3 border-b-2 border-green-800 text-xs text-center">
+              <p className="text-yellow-300 text-sm">{currentUser.email.split('@')[0]}</p>
+              <p className="text-green-200 text-xs">⭐ {userPoints}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="bg-red-600 text-white font-bold py-2 px-4 border-b-4 border-red-800 active:border-b-0 active:translate-y-1 hover:bg-red-500 transition-all uppercase text-xs"
+            >
+              LOGOUT
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowLogin(true)}
+            className="bg-blue-600 text-white font-bold py-2 px-4 border-b-4 border-blue-800 active:border-b-0 active:translate-y-1 hover:bg-blue-500 transition-all uppercase text-xs"
+          >
+            LOGIN
+          </button>
+        )}
       </div>
 
       {/* Welcome Popup */}
@@ -136,32 +247,193 @@ export const Pun = ({ onBack }) => {
         </div>
       )}
 
-      {/* Login Popup */}
+      {/* Login/Register Popup - IMPROVED UX */}
       {showLogin && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/80 z-[70]">
-          <div className="p-6 bg-blue-900 border-4 border-white flex flex-col items-center w-full max-w-sm mx-4 shadow-[10px_10px_0_#000]">
-            <p className="mb-6 text-white text-center leading-relaxed">
-              ENTER PLAYER NAME<br />
-            </p>
-            <input
-              type="text"
-              onChange={(e) => setInputName(e.target.value)}
-              value={inputName}
-              className="w-full bg-black text-green-500 p-3 border-2 border-green-500 font-retro focus:outline-none focus:border-green-300 mb-6 text-center uppercase"
-              placeholder="NAME..."
-            />
-            <div className="flex gap-4 w-full">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/85 z-[70] p-4">
+          <div className="relative w-full max-w-md bg-gradient-to-b from-blue-900 to-blue-950 border-4 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.5),10px_10px_0_#000]">
+            {/* Close Button */}
+            <button
+              onClick={() => {
+                setShowLogin(false);
+                setEmail('');
+                setPassword('');
+                setConfirmPassword('');
+                setIsRegistering(false);
+                setErrorMessage('');
+              }}
+              className="absolute -top-3 -right-3 w-8 h-8 bg-red-600 border-2 border-red-800 text-white font-bold rounded-full hover:bg-red-500 transition-all text-lg"
+            >
+              ✕
+            </button>
+
+            {/* Header */}
+            <div className="bg-black border-b-4 border-cyan-400 p-4">
+              <h2 className="text-center text-xl text-cyan-400 font-bold uppercase tracking-widest drop-shadow-[2px_2px_0_#ff00ff]">
+                ⚡ {isRegistering ? 'CREATE ACCOUNT' : 'PLAYER LOGIN'} ⚡
+              </h2>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 p-4 bg-black/50 border-b-2 border-cyan-400">
               <button
-                className="flex-1 bg-gray-600 text-white py-3 border-b-4 border-gray-800 hover:bg-gray-500 active:border-b-0 active:translate-y-1"
-                onClick={() => setShowLogin(false)}
+                onClick={() => {
+                  setIsRegistering(false);
+                  setErrorMessage('');
+                }}
+                className={`flex-1 py-3 px-4 font-bold uppercase text-sm border-2 transition-all ${
+                  !isRegistering
+                    ? 'bg-yellow-500 text-black border-yellow-600 shadow-[4px_4px_0_#000]'
+                    : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'
+                }`}
               >
-                CANCEL
+                🔓 LOGIN
               </button>
               <button
-                className="flex-1 bg-yellow-500 text-black py-3 border-b-4 border-yellow-700 hover:bg-yellow-400 active:border-b-0 active:translate-y-1"
-                onClick={handleLogin}
+                onClick={() => {
+                  setIsRegistering(true);
+                  setErrorMessage('');
+                }}
+                className={`flex-1 py-3 px-4 font-bold uppercase text-sm border-2 transition-all ${
+                  isRegistering
+                    ? 'bg-green-500 text-black border-green-600 shadow-[4px_4px_0_#000]'
+                    : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'
+                }`}
               >
-                CONFIRM
+                ✚ REGISTER
+              </button>
+            </div>
+
+            {/* Form Content */}
+            <div className="p-6 space-y-4">
+              {/* Error Message - Enhanced Display */}
+              {errorMessage && (
+                <div className="bg-red-900/80 border-2 border-red-500 p-3 rounded shadow-[inset_0_0_10px_rgba(255,0,0,0.3)]">
+                  <p className="text-red-200 text-sm font-bold">⚠️ ERROR</p>
+                  <p className="text-red-100 text-xs mt-1">{errorMessage}</p>
+                </div>
+              )}
+
+              {/* Email Input */}
+              <div>
+                <label className="block text-cyan-300 text-xs font-bold uppercase tracking-wider mb-2">
+                  📧 Email Address
+                </label>
+                <input
+                  type="email"
+                  onChange={(e) => setEmail(e.target.value)}
+                  value={email}
+                  className="w-full bg-black text-green-400 p-3 border-2 border-green-500 font-retro focus:outline-none focus:border-green-300 focus:shadow-[0_0_10px_rgba(0,255,0,0.3)] transition-all"
+                  placeholder="player@arcade.com"
+                  disabled={loading}
+                  onKeyPress={(e) => e.key === 'Enter' && !loading && (isRegistering ? handleRegister() : handleLogin())}
+                />
+              </div>
+
+              {/* Password Input */}
+              <div>
+                <label className="block text-cyan-300 text-xs font-bold uppercase tracking-wider mb-2">
+                  🔐 Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    onChange={(e) => setPassword(e.target.value)}
+                    value={password}
+                    className="w-full bg-black text-green-400 p-3 border-2 border-green-500 font-retro focus:outline-none focus:border-green-300 focus:shadow-[0_0_10px_rgba(0,255,0,0.3)] transition-all pr-10"
+                    placeholder="••••••••"
+                    disabled={loading}
+                    onKeyPress={(e) => e.key === 'Enter' && !loading && (isRegistering ? handleRegister() : handleLogin())}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 hover:text-green-300 transition-colors"
+                    disabled={loading}
+                  >
+                    {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password - Only on Register */}
+              {isRegistering && (
+                <div>
+                  <label className="block text-cyan-300 text-xs font-bold uppercase tracking-wider mb-2">
+                    ✓ Confirm Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      value={confirmPassword}
+                      className="w-full bg-black text-green-400 p-3 border-2 border-green-500 font-retro focus:outline-none focus:border-green-300 focus:shadow-[0_0_10px_rgba(0,255,0,0.3)] transition-all pr-10"
+                      placeholder="••••••••"
+                      disabled={loading}
+                      onKeyPress={(e) => e.key === 'Enter' && !loading && handleRegister()}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 hover:text-green-300 transition-colors"
+                      disabled={loading}
+                    >
+                      {showConfirmPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Password Strength Indicator - Only on Register */}
+              {isRegistering && password && (
+                <div className="bg-black/50 border-2 border-yellow-500 p-2">
+                  <p className="text-yellow-400 text-xs font-bold mb-1">PASSWORD STRENGTH</p>
+                  <div className="flex gap-1">
+                    <div className={`flex-1 h-2 border border-yellow-600 ${password.length >= 6 ? 'bg-green-500' : 'bg-gray-700'}`}></div>
+                    <div className={`flex-1 h-2 border border-yellow-600 ${password.length >= 10 ? 'bg-green-500' : 'bg-gray-700'}`}></div>
+                    <div className={`flex-1 h-2 border border-yellow-600 ${password.match(/[0-9]/) ? 'bg-green-500' : 'bg-gray-700'}`}></div>
+                  </div>
+                  <p className="text-yellow-200 text-xs mt-1">
+                    {password.length < 6 ? 'Weak' : password.length < 10 ? 'Medium' : password.match(/[0-9]/) ? 'Strong' : 'Medium'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="border-t-2 border-cyan-400 p-4 space-y-3">
+              <button
+                onClick={isRegistering ? handleRegister : handleLogin}
+                disabled={loading}
+                className={`w-full py-3 px-4 border-b-4 uppercase font-bold text-lg transition-all disabled:opacity-50 ${
+                  isRegistering
+                    ? 'bg-green-500 text-black border-green-700 hover:bg-green-400 active:border-b-0 active:translate-y-1'
+                    : 'bg-yellow-500 text-black border-yellow-700 hover:bg-yellow-400 active:border-b-0 active:translate-y-1'
+                }`}
+              >
+                {loading ? (
+                  <>
+                    ⏳ {isRegistering ? 'CREATING...' : 'SIGNING IN...'}
+                  </>
+                ) : (
+                  <>
+                    {isRegistering ? '✚ REGISTER NEW PLAYER' : '▶ START GAME'}
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowLogin(false);
+                  setEmail('');
+                  setPassword('');
+                  setConfirmPassword('');
+                  setIsRegistering(false);
+                  setErrorMessage('');
+                }}
+                disabled={loading}
+                className="w-full py-3 px-4 border-b-4 bg-gray-700 text-white border-gray-900 hover:bg-gray-600 active:border-b-0 active:translate-y-1 uppercase font-bold transition-all disabled:opacity-50"
+              >
+                ✕ CANCEL
               </button>
             </div>
           </div>
@@ -171,14 +443,17 @@ export const Pun = ({ onBack }) => {
       {/* Error Popup */}
       {showError && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/90 z-[80]">
-          <div className='text-center animate-bounce p-8 border-4 border-red-600 bg-black'>
-            <p className='text-3xl text-red-500 mb-4'>FATAL ERROR</p>
-            <p className='text-xl text-white mb-8'>
-
+          <div className='text-center animate-bounce p-8 border-4 border-red-600 bg-black max-w-md mx-4'>
+            <p className='text-3xl text-red-500 mb-4'>ERROR</p>
+            <p className='text-lg text-white mb-8'>
+              {errorMessage || 'Something went wrong!'}
             </p>
             <button
               className="bg-red-600 text-white py-3 px-8 border-b-4 border-red-800 hover:bg-red-500 active:border-b-0 active:translate-y-1 uppercase"
-              onClick={() => setShowError(false)}
+              onClick={() => {
+                setShowError(false);
+                setErrorMessage('');
+              }}
             >
               CLOSE
             </button>
@@ -197,7 +472,11 @@ export const Pun = ({ onBack }) => {
       {/* Game Area */}
       <div ref={containerRef} className="h-min relative flex-1 w-full flex justify-center items-center overflow-hidden z-10">
         <div className="fixed inset-0 z-50 bg-black">
-          <SnakeGame onBack={onBack} />
+          <SnakeGame 
+            onBack={onBack} 
+            currentUser={currentUser} 
+            onShowLogin={() => setShowLogin(true)}
+          />
         </div>
       </div>
 
